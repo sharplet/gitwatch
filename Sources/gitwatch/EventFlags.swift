@@ -32,7 +32,7 @@ struct EventFlags: OptionSet {
 }
 
 extension EventFlags: CaseIterable {
-  static var allCases: [EventFlags] {
+  static let allCases: [EventFlags] = {
     var allCases: [EventFlags] = [
       .mustScanSubdirectories,
       .userDropped,
@@ -61,5 +61,51 @@ extension EventFlags: CaseIterable {
       allCases.append(.itemCloned)
     }
     return allCases
+  }()
+}
+
+private extension EventFlags {
+  static let descriptions: [String] = {
+    var descriptions: [String] = [
+      "mustScanSubdirectories",
+      "userDropped",
+      "kernelDropped",
+      "eventIDsWrapped",
+      "historyDone",
+      "rootChanged",
+      "mount",
+      "unmount",
+      "itemCreated",
+      "itemRemoved",
+      "itemInodeMetadataModified",
+      "itemRenamed",
+      "itemModified",
+      "itemFinderInfoModified",
+      "itemChangedOwner",
+      "itemXattrModified",
+      "itemIsFile",
+      "itemIsDirectory",
+      "itemIsSymlink",
+      "ownEvent",
+      "itemIsHardlink",
+      "itemIsLastHardlink",
+    ]
+    if #available(macOS 10.13, *) {
+      descriptions.append("itemCloned")
+    }
+    return descriptions
+  }()
+}
+
+extension EventFlags: CustomStringConvertible {
+  var description: String {
+    let contained = EventFlags.allCases.filter(self.contains)
+    let description = contained.map { $0.caseDescription }.joined(separator: ", ")
+    return "{\(description)}"
+  }
+
+  private var caseDescription: String {
+    let index = EventFlags.allCases.firstIndex { self.contains($0) }!
+    return EventFlags.descriptions[index]
   }
 }
