@@ -15,35 +15,17 @@ guard let watcher = Watcher(url: dir) else {
 }
 
 print("Watching for file system events in directory: \(dir.path)")
+
 watcher.start()
 
-signal(SIGINT, SIG_IGN)
-
-let interruptHandler = DispatchSource.makeSignalSource(
-  signal: SIGINT,
-  queue: .main
-)
-
-interruptHandler.setEventHandler { [unowned interruptHandler] in
-  watcher.cancel()
-  interruptHandler.cancel()
-
-  fputs("Stopping...\n", stderr)
-
-  let deadline = Date() + 0.1
-
-  Timer.scheduledTimer(withTimeInterval: 0.01, repeats: true) { timer in
-    if watcher.isFinished {
-      timer.invalidate()
-      CFRunLoopStop(CFRunLoopGetCurrent())
-    } else if Date() >= deadline {
-      fputs("warning: File System Events stream did not stop cleanly; exiting.\n", stderr)
-      exit(1)
-    }
+InterruptHandler.register(withTimeout: 0.1, watcher: watcher) { isFinished in
+  if isFinished {
+    CFRunLoopStop(CFRunLoopGetCurrent())
+  } else {
+    fputs("warning: File System Events stream did not stop cleanly; exiting.\n", stderr)
+    exit(1)
   }
 }
-
-interruptHandler.resume()
 
 CFRunLoopRun()
 
