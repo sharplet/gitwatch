@@ -4,6 +4,9 @@ import PackageDescription
 
 let package = Package(
   name: "gitwatch",
+  platforms: [
+    .macOS(.v10_12),
+  ],
   targets: [
     .target(name: "gitwatch"),
   ]

@@ -1,53 +1,55 @@
-import CoreServices
 import Foundation
 
-let callback: FSEventStreamCallback = { stream, info, count, paths, flags, ids in
-  let flags = UnsafeBufferPointer(start: flags, count: count)
-  let paths = Unmanaged<CFArray>.fromOpaque(paths).takeUnretainedValue() as! [String]
+let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("gitwatch", isDirectory: true)
 
-  for (path, flags) in zip(paths, flags) {
-    let flags = EventFlags(rawValue: flags)
-    print(path, terminator: "")
-
-    for flag in EventFlags.allCases where flags.contains(flag) {
-      switch flags {
-      case Contains(.itemCreated):
-        print(" itemCreated", terminator: "")
-      case Contains(.itemRemoved):
-        print(" itemRemoved", terminator: "")
-      case Contains(.itemInodeMetadataModified):
-        print(" itemInodeMetadataModified", terminator: "")
-      case Contains(.itemRenamed):
-        print(" itemRenamed", terminator: "")
-      case Contains(.itemModified):
-        print(" itemModified", terminator: "")
-      default:
-        print(" \(flags)", terminator: "")
-      }
-    }
-
-    print()
-  }
+do {
+  try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+} catch {
+  fputs("fatal: Unable to create temporary directory at path: \(dir.path)\n", stderr)
+  exit(1)
 }
 
-let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("gitwatch", isDirectory: true)
-try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-print("Watching for file system events in directory: \(dir.path)")
-
-guard let stream = FSEventStreamCreate(
-  nil,
-  callback,
-  nil,
-  [dir.path] as CFArray,
-  FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
-  1,
-  FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes)
-) else {
+guard let watcher = Watcher(url: dir) else {
   fputs("fatal: Unable to create FSEvents stream at path: \(dir.path)\n", stderr)
   exit(1)
 }
 
-FSEventStreamScheduleWithRunLoop(stream, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
-FSEventStreamStart(stream)
+print("Watching for file system events in directory: \(dir.path)")
+watcher.start()
+
+signal(SIGINT, SIG_IGN)
+
+let interruptHandler = DispatchSource.makeSignalSource(
+  signal: SIGINT,
+  queue: .main
+)
+
+interruptHandler.setEventHandler { [unowned interruptHandler] in
+  watcher.cancel()
+  interruptHandler.cancel()
+
+  fputs("Stopping...\n", stderr)
+
+  let deadline = Date() + 0.1
+
+  Timer.scheduledTimer(withTimeInterval: 0.01, repeats: true) { timer in
+    if watcher.isFinished {
+      timer.invalidate()
+      CFRunLoopStop(CFRunLoopGetCurrent())
+    } else if Date() >= deadline {
+      fputs("warning: File System Events stream did not stop cleanly; exiting.\n", stderr)
+      exit(1)
+    }
+  }
+}
+
+interruptHandler.resume()
 
 CFRunLoopRun()
+
+do {
+  try FileManager.default.removeItem(at: dir)
+} catch {
+  fputs("fatal: Unable to remove temporary directory at path: \(dir.path)\n", stderr)
+  exit(1)
+}
