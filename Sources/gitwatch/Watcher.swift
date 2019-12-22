@@ -19,6 +19,8 @@ final class Watcher: Thread {
     ) else { return nil }
 
     self.stream = stream
+    super.init()
+    self.name = "me.sharplet.gitwatch.Watcher"
   }
 
   override func cancel() {
