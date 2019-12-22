@@ -41,6 +41,7 @@ final class Watcher: Thread {
 
     watch: do {
       let result = CFRunLoopRunInMode(.defaultMode, 10, true)
+
       switch (isCancelled, result) {
       case (true, _), (_, .finished):
         break watch
@@ -59,11 +60,6 @@ final class Watcher: Thread {
 }
 
 private extension Watcher {
-  struct Event {
-    var path: String
-    var flags: EventFlags
-  }
-
   func handleEvents<Events: Sequence>(_ events: Events) where Events.Element == Event {
     let events = Array(events)
     print(events)
