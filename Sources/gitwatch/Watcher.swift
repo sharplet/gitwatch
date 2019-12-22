@@ -5,12 +5,12 @@ final class Watcher: Thread {
   private var stream: FSEventStreamRef!
   private var runLoop: CFRunLoop!
 
-  init?(url: URL, latency: TimeInterval = 0.01) {
+  init?<URLs: Sequence>(urls: URLs, latency: TimeInterval = 0.01) where URLs.Element == URL {
     guard let stream = FSEventStreamCreate(
       nil,
       Watcher.callback,
       nil,
-      [url.path] as CFArray,
+      urls.map { $0.path } as CFArray,
       FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
       latency,
       FSEventStreamCreateFlags(
