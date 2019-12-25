@@ -8,6 +8,7 @@ guard let watcher = Watcher(urls: urls) else {
   exit(1)
 }
 
+let handler = GitHandler(watcher: watcher)
 watcher.start()
 
 InterruptHandler.register(withTimeout: 0.1, watcher: watcher) { isFinished in

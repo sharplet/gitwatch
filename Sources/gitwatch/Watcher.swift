@@ -1,9 +1,19 @@
 import CoreServices
 import Foundation
 
+protocol WatcherDelegate: AnyObject {
+  func watcher(_ watcher: Watcher, willHandle event: Event) -> EventAction?
+}
+
 final class Watcher: Thread {
+  static let fileSystemEventNotification = Notification.Name("WatcherFileSystemEvent")
+  static let fileSystemEventsKey = "WatcherFileSystemEvents"
+
   private var stream: FSEventStreamRef!
   private var runLoop: CFRunLoop!
+
+  var coalesceEventPaths: Bool = true
+  weak var delegate: WatcherDelegate?
 
   init?<URLs: Sequence>(urls: URLs, latency: TimeInterval = 0.01) where URLs.Element == URL {
     super.init()
@@ -60,11 +70,6 @@ final class Watcher: Thread {
 }
 
 private extension Watcher {
-  func handleEvents<Events: Sequence>(_ events: Events) where Events.Element == Event {
-    let events = Array(events)
-    print(events)
-  }
-
   static let callback: FSEventStreamCallback = { stream, info, count, paths, flags, ids in
     guard let info = info else { return }
     let flags = UnsafeBufferPointer(start: flags, count: count).lazy.map(EventFlags.init)
@@ -73,5 +78,39 @@ private extension Watcher {
     let events = zip(paths, flags).lazy.map(Event.init)
     let watcher = Unmanaged<Watcher>.fromOpaque(info).takeUnretainedValue()
     watcher.handleEvents(events)
+  }
+
+  private func handleEvents<Events: Sequence>(_ events: Events) where Events.Element == Event {
+    var notificationEvents: [Event] = []
+
+    for event in events {
+      let action: EventAction
+
+      if let delegate = delegate {
+        guard let delegateAction = delegate.watcher(self, willHandle: event) else { continue }
+        action = delegateAction
+      } else {
+        action = .notify
+      }
+
+      switch action {
+      case .notify:
+        if coalesceEventPaths, let index = notificationEvents.firstIndex(where: { $0.path == event.path }) {
+          notificationEvents[index].flags.formUnion(event.flags)
+        } else {
+          notificationEvents.append(event)
+        }
+      }
+    }
+
+    if let events = notificationEvents.nonEmpty {
+      NotificationCenter.default.post(
+        name: Watcher.fileSystemEventNotification,
+        object: self,
+        userInfo: [
+          Watcher.fileSystemEventsKey: events,
+        ]
+      )
+    }
   }
 }

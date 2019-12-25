@@ -1,0 +1,3 @@
+enum EventAction {
+  case notify
+}
