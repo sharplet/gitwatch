@@ -50,7 +50,9 @@ final class Watcher: Thread {
     FSEventStreamStart(stream)
 
     watch: do {
-      let result = CFRunLoopRunInMode(.defaultMode, 10, true)
+      let result = autoreleasepool {
+        CFRunLoopRunInMode(.defaultMode, 10, true)
+      }
 
       switch (isCancelled, result) {
       case (true, _), (_, .finished):
