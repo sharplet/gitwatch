@@ -2,8 +2,9 @@ import Foundation
 import Regex
 
 final class GitHandler: WatcherDelegate {
-  let branch = Regex(#".git/refs/heads/[^/]+$"#)
+  let branch = Regex(#".git/refs/heads/.+$"#)
   let head = Regex(#".git/HEAD$"#)
+  let remote = Regex(#".git/refs/remotes/.+?/.+$"#)
   let lockFile = Regex(#"\.lock$"#)
 
   private var observation: Any!
@@ -51,7 +52,7 @@ final class GitHandler: WatcherDelegate {
     switch event.path {
     case lockFile:
       return nil
-    case branch, head:
+    case branch, head, remote:
       return .notify
     default:
       return nil
